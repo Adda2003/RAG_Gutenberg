@@ -7,17 +7,19 @@ from src.data_loader import GutenbergLoader, TextProcessor
 from src.embeddings import HuggingFaceEmbeddings
 from src.vector_store import FAISSVectorStore
 from src.llm_pipeline import OpenAILLM, QAResponse
+from src.hf_llm import HFLLM, HFConfig
 
 import os
 
 class QASystem:
     """Main Question Answering System"""
-    
-    def __init__(self, config_path: str = "config/config.yaml"):
+
+    def __init__(self, config_path: str = "config/config.yaml", llm_type: str = "openai"):
         self.config = self._load_config(config_path)
         self.embeddings = None
         self.vector_store = None
         self.llm = None
+        self.llm_type = llm_type
         self._setup_components()
     
     def _load_config(self, config_path: str) -> Dict[str, Any]:
@@ -37,11 +39,26 @@ class QASystem:
         self.vector_store = FAISSVectorStore(self.embeddings)
         
         # Setup LLM
-        self.llm = OpenAILLM(
-            model_name=self.config['llm']['model_name'],
-            temperature=self.config['llm']['temperature'],
-            max_tokens=self.config['llm']['max_tokens']
-        )
+        if self.llm_type == "phi":
+            self.llm = HFLLM(
+                HFConfig(
+                    model_name="microsoft/phi-2",
+                    device=self.config['embeddings']['device'],
+                )
+            )
+        elif self.llm_type == "llama":
+            self.llm = HFLLM(
+                HFConfig(
+                    model_name="meta-llama/Llama-2-7b-chat-hf",
+                    device=self.config['embeddings']['device'],
+                )
+            )
+        else:
+            self.llm = OpenAILLM(
+                model_name=self.config['llm']['model_name'],
+                temperature=self.config['llm']['temperature'],
+                max_tokens=self.config['llm']['max_tokens']
+            )
     
     def build_knowledge_base(self):
         """Build the knowledge base from Gutenberg text"""
