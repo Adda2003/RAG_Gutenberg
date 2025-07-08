@@ -1,20 +1,28 @@
 """
-Main Question Answering interface
+Main Question Answering interface with support for multiple LLM backends
 """
 import yaml
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from src.data_loader import GutenbergLoader, TextProcessor
 from src.embeddings import HuggingFaceEmbeddings
 from src.vector_store import FAISSVectorStore
 from src.llm_pipeline import OpenAILLM, QAResponse
+from src.huggingface_llm import HuggingFaceLLM, ModelFactory
 
 import os
 
 class QASystem:
-    """Main Question Answering System"""
+    """Main Question Answering System with multiple LLM backend support"""
     
-    def __init__(self, config_path: str = "config/config.yaml"):
+    def __init__(self, config_path: str = "config/config.yaml", 
+                 model_type: str = "openai", 
+                 model_name: Optional[str] = None,
+                 model_config: Optional[Dict[str, Any]] = None):
         self.config = self._load_config(config_path)
+        self.model_type = model_type
+        self.model_name = model_name
+        self.model_config = model_config or {}
+        
         self.embeddings = None
         self.vector_store = None
         self.llm = None
@@ -27,31 +35,69 @@ class QASystem:
     
     def _setup_components(self):
         """Initialize all components"""
+        print("🔧 Setting up QA system components...")
+        
         # Setup embeddings
+        print("📊 Loading embeddings model...")
         self.embeddings = HuggingFaceEmbeddings(
             model_name=self.config['embeddings']['model_name'],
             device=self.config['embeddings']['device']
         )
         
         # Setup vector store
+        print("🗂️ Setting up vector store...")
         self.vector_store = FAISSVectorStore(self.embeddings)
         
-        # Setup LLM
-        self.llm = OpenAILLM(
-            model_name=self.config['llm']['model_name'],
-            temperature=self.config['llm']['temperature'],
-            max_tokens=self.config['llm']['max_tokens']
-        )
+        # Setup LLM based on type
+        self._setup_llm()
+    
+    def _setup_llm(self):
+        """Setup the LLM based on specified type"""
+        print(f"🤖 Setting up {self.model_type} LLM...")
+        
+        if self.model_type == "openai":
+            # Use OpenAI LLM
+            openai_config = self.config['llm'].copy()
+            openai_config.update(self.model_config)
+            
+            self.llm = OpenAILLM(
+                model_name=openai_config.get('model_name', 'gpt-4o-mini'),
+                temperature=openai_config.get('temperature', 0.2),
+                max_tokens=openai_config.get('max_tokens', 800)
+            )
+            
+        elif self.model_type == "huggingface":
+            # Use HuggingFace LLM
+            if self.model_name:
+                # Use specific model via factory
+                hf_config = {
+                    'temperature': self.model_config.get('temperature', 0.2),
+                    'max_tokens': self.model_config.get('max_tokens', 800),
+                    'load_in_4bit': self.model_config.get('load_in_4bit', True)
+                }
+                
+                self.llm = ModelFactory.create_model(self.model_name, **hf_config)
+            else:
+                # Use default Phi-3
+                hf_config = {
+                    'temperature': self.model_config.get('temperature', 0.2),
+                    'max_tokens': self.model_config.get('max_tokens', 800),
+                    'load_in_4bit': self.model_config.get('load_in_4bit', True)
+                }
+                
+                self.llm = HuggingFaceLLM(**hf_config)
+        else:
+            raise ValueError(f"Unsupported model type: {self.model_type}")
     
     def build_knowledge_base(self):
         """Build the knowledge base from Gutenberg text"""
-        print("Loading text from Project Gutenberg...")
+        print("📚 Loading text from Project Gutenberg...")
         
         # Load document
         loader = GutenbergLoader(self.config['data']['gutenberg_url'])
         documents = loader.load()
         
-        print(f"Loaded {len(documents)} documents")
+        print(f"✅ Loaded {len(documents)} documents")
         
         # Process and chunk text
         processor = TextProcessor(
@@ -60,28 +106,33 @@ class QASystem:
         )
         chunks = processor.split_documents(documents)
         
-        print(f"Created {len(chunks)} text chunks")
+        print(f"✅ Created {len(chunks)} text chunks")
         
         # Add to vector store
-        print("Building vector store...")
+        print("🔍 Building vector store...")
         self.vector_store.add_documents(chunks)
         
         # Save vector store
         self.vector_store.save(self.config['vector_store']['index_path'])
-        print("Knowledge base built and saved successfully!")
+        print("✅ Knowledge base built and saved successfully!")
     
     def load_knowledge_base(self):
         """Load existing knowledge base"""
-        if os.path.exists(self.config['vector_store']['index_path']):
-            self.vector_store.load(self.config['vector_store']['index_path'])
-            print("Knowledge base loaded successfully!")
+        index_path = self.config['vector_store']['index_path']
+        if os.path.exists(index_path):
+            print("📁 Loading existing knowledge base...")
+            self.vector_store.load(index_path)
+            print("✅ Knowledge base loaded successfully!")
         else:
-            print("No existing knowledge base found. Please build it first.")
+            print("❌ No existing knowledge base found. Please build it first with --build")
+            raise FileNotFoundError(f"Knowledge base not found at {index_path}")
     
     def ask_question(self, question: str) -> QAResponse:
         """Ask a question and get an answer"""
         if self.vector_store.index is None:
             raise ValueError("Knowledge base not loaded. Please build or load it first.")
+        
+        print(f"🔍 Searching for relevant context...")
         
         # Retrieve relevant context
         results = self.vector_store.similarity_search(
@@ -95,41 +146,31 @@ class QASystem:
             results = [(doc, score) for doc, score in results if score >= threshold]
         
         if not results:
+            print("⚠️ No relevant context found")
             return QAResponse(
-                answer="I couldn't find relevant information to answer your question.",
+                answer="I couldn't find relevant information to answer your question in Alice's Adventures in Wonderland.",
                 context=[],
                 confidence=0.0,
                 sources=[]
             )
         
+        print(f"✅ Found {len(results)} relevant text passages")
+        
         # Extract context
         context = [doc.page_content for doc, _ in results]
         
-        # Generate answer
+        # Generate answer using the configured LLM
+        print(f"💭 Generating answer using {self.model_type} model...")
         response = self.llm.generate_answer(question, context)
         
+        print(f"✅ Answer generated with confidence: {response.confidence:.2f}")
         return response
     
-    def get_sample_questions(self) -> List[str]:
-        """Get sample questions for different categories"""
-        return [
-            # Character questions
-            "Who is Alice and what are her main characteristics?",
-            "Describe the Cheshire Cat and its role in the story.",
-            "What is the Queen of Hearts like?",
-            "Who is the Mad Hatter and what makes him mad?",
-            
-            # Plot questions
-            "How does Alice fall down the rabbit hole?",
-            "What happens at the Mad Tea Party?",
-            "Describe the Queen's croquet game.",
-            "How does the story end?",
-            "What is the trial scene about?",
-            
-            # Thematic questions
-            "What are the main themes in Alice's Adventures in Wonderland?",
-            "How does the story portray the concept of growing up?",
-            "What does Wonderland represent symbolically?",
-            "How does Carroll use nonsense and wordplay in the story?",
-            "What social commentary can be found in the story?"
-        ]
+    def get_model_info(self) -> Dict[str, Any]:
+        """Get information about the current model configuration"""
+        return {
+            "model_type": self.model_type,
+            "model_name": self.model_name,
+            "model_config": self.model_config,
+            "llm_class": type(self.llm).__name__
+        }
