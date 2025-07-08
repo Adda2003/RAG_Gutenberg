@@ -1,0 +1,22 @@
+# Configuration for the QA system
+data:
+  gutenberg_url: "https://www.gutenberg.org/cache/epub/11/pg11.txt"
+  chunk_size: 800  # Reduced for better granularity
+  chunk_overlap: 150  # Reduced overlap
+
+embeddings:
+  model_name: "all-MiniLM-L6-v2"
+  device: "cpu"
+
+llm:
+  model_name: "gpt-4o-mini"  # Updated to use GPT-4o-mini
+  temperature: 0.2  # Slightly higher for more creativity
+  max_tokens: 800  # Increased for more detailed answers
+
+vector_store:
+  type: "faiss"
+  index_path: "data/vector_store"
+
+retrieval:
+  top_k: 7  # Increased to get more context
+  score_threshold: 0.2  # Lower threshold for better recall

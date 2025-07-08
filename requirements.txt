@@ -1,0 +1,15 @@
+langchain
+langchain-community
+langchain-openai
+openai
+sentence-transformers
+faiss-cpu
+numpy
+pandas
+requests
+python-dotenv
+streamlit
+ragas
+datasets
+flask
+pyyaml
