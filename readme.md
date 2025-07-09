@@ -298,6 +298,3 @@ python run_server.py
 
 6. **Open browser**: http://localhost:5000
 
-## License
-
-This project is for educational purposes. The Alice in Wonderland text is in the public domain.

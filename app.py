@@ -21,12 +21,16 @@ logger = logging.getLogger(__name__)
 # Global QA system instance
 qa_system = None
 
-def initialize_qa_system():
-    """Initialize the QA system"""
+def initialize_qa_system(model_type="openai", model_name=None, model_config=None):
+    """Initialize the QA system with specified model configuration"""
     global qa_system
     try:
         logger.info("Initializing QA system...")
-        qa_system = QASystem()
+        qa_system = QASystem(
+            model_type=model_type,
+            model_name=model_name,
+            model_config=model_config or {}
+        )
         qa_system.load_knowledge_base()
         logger.info("QA system initialized successfully!")
         return True

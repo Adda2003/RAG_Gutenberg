@@ -127,26 +127,24 @@ class QASystem:
         
         return response
     
+    def get_model_info(self) -> Dict[str, Any]:
+        """Get information about the current model configuration"""
+        return {
+            "model_type": self.model_type,
+            "model_name": self.model_name,
+            "model_config": self.model_config,
+            "llm_class": type(self.llm).__name__
+        }
+    
     def get_sample_questions(self) -> List[str]:
-        """Get sample questions for different categories"""
+        """Get sample questions for the interface"""
         return [
-            # Character questions
             "Who is Alice and what are her main characteristics?",
             "Describe the Cheshire Cat and its role in the story.",
-            "What is the Queen of Hearts like?",
-            "Who is the Mad Hatter and what makes him mad?",
-            
-            # Plot questions
-            "How does Alice fall down the rabbit hole?",
             "What happens at the Mad Tea Party?",
-            "Describe the Queen's croquet game.",
-            "How does the story end?",
-            "What is the trial scene about?",
-            
-            # Thematic questions
+            "How does Alice fall down the rabbit hole?",
+            "What is the Queen of Hearts like?",
             "What are the main themes in Alice's Adventures in Wonderland?",
-            "How does the story portray the concept of growing up?",
-            "What does Wonderland represent symbolically?",
-            "How does Carroll use nonsense and wordplay in the story?",
-            "What social commentary can be found in the story?"
+            "Describe the White Rabbit and his significance.",
+            "What does the Caterpillar teach Alice?"
         ]
