@@ -16,11 +16,20 @@ def main():
     parser.add_argument("--evaluate", action="store_true", help="Run evaluation")
     parser.add_argument("--interactive", action="store_true", help="Run interactive mode")
     parser.add_argument("--question", type=str, help="Ask a specific question")
+    parser.add_argument("--llama", action="store_true", help="Use Llama 2 model via HuggingFace")
+    parser.add_argument("--phi", action="store_true", help="Use Phi-2 model via HuggingFace")
     
     args = parser.parse_args()
-    
+
+    # Determine which LLM to use
+    llm_type = "openai"
+    if args.phi:
+        llm_type = "phi"
+    elif args.llama:
+        llm_type = "llama"
+
     # Initialize QA system
-    qa_system = QASystem()
+    qa_system = QASystem(llm_type=llm_type)
     
     if args.build:
         print("Building knowledge base...")

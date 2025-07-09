@@ -11,5 +11,5 @@ python-dotenv
 streamlit
 ragas
 datasets
-flask
-pyyaml
+flaskpyyaml
+transformers
